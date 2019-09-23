@@ -1345,3 +1345,7 @@ def get_memory_leak_median_value():
             raise UnexpectedBehaviour
         median_dict[f"{worker}"] = statistics.median(memory_leak_data)
     return median_dict
+
+
+def get_osd_count():
+    return len(pod.get_osd_pods())
