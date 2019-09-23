@@ -122,25 +122,76 @@ def delete_machine_and_check_state_of_new_spinned_machine(machine_name):
 
 
 def get_machinesets():
-    machines = list()
+    """
+    Get machine sets
+
+    Returns:
+        machine_sets (list): list of machine sets
+    """
+    machine_sets = list()
     machinesets_obj = OCP(kind=constants.MACHINESETS, namespace=constants.OPENSHIFT_MACHINE_API_NAMESPACE)
     for machine in machinesets_obj.get()['items']:
-        machines.append(machine.get('spec').get('selector').get(
-            'matchLabels').get('machine.openshift.io/cluster-api-machineset'))
+        machine_sets.append(machine.get('spec').get('selector').get(
+            'matchLabels').get('machine.openshift.io/cluster-api-machineset')
+        )
 
-    return machines
+    return machine_sets
 
 
-def get_replica_count(machine):
+def get_replica_count(machine_set):
+    """
+    Get replica count of a machine set
+
+    Args:
+        machine_set (str): Name of a machine set to get replica count
+
+    Returns:
+        replica count (int): replica count of a machine set
+    """
     machinesets_obj = OCP(kind=constants.MACHINESETS, namespace=constants.OPENSHIFT_MACHINE_API_NAMESPACE)
-    return machinesets_obj.get(resource_name=machine).get('spec').get('replicas')
+    return machinesets_obj.get(resource_name=machine_set).get('spec').get('replicas')
 
 
-def add_node(machine, count):
-    run_cmd(f'oc -n {constants.OPENSHIFT_MACHINE_API_NAMESPACE} scale --replicas={count} machinesets {machine}')
+def add_node(machine_set, count):
+    """
+    Add new node to the cluster
+    Args:
+        machine_set (str): Name of a machine set to get increase replica count
+        count (int): Count to increase
+
+    Returns:
+        bool: True if commands executes successfully
+    """
+    ocp = OCP(namespace=constants.OPENSHIFT_MACHINE_API_NAMESPACE)
+    ocp.exec_oc_cmd(f'scale --replicas={count} machinesets {machine_set}')
     return True
 
 
-def remove_node(machine, count):
-    run_cmd(f'oc -n {constants.OPENSHIFT_MACHINE_API_NAMESPACE} scale --replicas={count} machinesets {machine}')
+def add_capacity(count, storagecluster_name):
+    """
+    Add capacity to the cluster
+    Args:
+        storagecluster_name (str): Name of a storage cluster
+        count (int): Count of osds to add, for ex: if total count of osds is 3, it will add 3 osds more
+    Returns:
+        bool: True if commands executes successfully
+    """
+    ocp = OCP()
+    cmd = f'''
+patch storagecluster/{storagecluster_name} --type='json' -p='[{{"op": "replace",
+"path": "/spec/storageDeviceSets/0/count", "value":{count}}}]'
+            '''
+    ocp.exec_oc_cmd(cmd)
     return True
+
+
+def get_storage_cluster():
+    """
+    Get storage cluster name
+
+    Returns:
+        str: Storage cluster name
+    """
+
+    sc_obj = OCP(kind=constants.STORAGECLUSTER)
+    return sc_obj.get().get('items')[0].get('metadata').get('name')
